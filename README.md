@@ -2,3 +2,7 @@
 Projet final d'iot en b2, plante connecté.
 
 Url du dashboard : https://io.adafruit.com/MoulesFrites/dashboards/iot-final
+
+Burle Clélia,
+Bourg Valentin,
+Wilfart LouisArmand 
