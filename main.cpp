@@ -9,6 +9,18 @@ NetworkInterface *net;
 
 int arrivedcount = 0;
 const char* topic = "MoulesFrites/feeds/temperature";
+const char* topic2 = "MoulesFrites/feeds/hygrometrie";
+int water_value = 1;
+int air_value = 0;
+AnalogIn capt_hum(ADC_IN1);
+
+namespace {
+#define PERIOD_MS 10000
+}
+
+static DigitalOut led1(LED1);
+I2C i2c(I2C1_SDA, I2C1_SCL);
+uint8_t lm75_adress = 0x48 << 1;
 
 /* Printf the message received and its configuration */
 void messageArrived(MQTT::MessageData& md)
@@ -37,13 +49,6 @@ int main() {
     if (!net) {
         printf("Error! No network inteface found.\n");
         return 0;
-    }
-
-    // Connect 6LowPAN interface
-    result = net->connect();
-    if (result != 0) {
-        printf("Error! net->connect() returned: %d\n", result);
-        return result;
     }
 
     // Build the socket that will be used for MQTT
@@ -77,16 +82,45 @@ int main() {
     MQTT::Message message;
 
     // QoS 0
-    char buf[100];
-    sprintf(buf, "Hello World!  QoS 0 message from 6TRON\r\n");
+    while (true) {
+        char buf[100];
 
-    message.qos = MQTT::QOS0;
-    message.retained = false;
-    message.dup = false;
-    message.payload = (void*)buf;
-    message.payloadlen = strlen(buf)+1;
+        //Envoi temperature
+    	char cmd[2];
+    	cmd[0] = 0x00; // adresse registre temperature
+    	i2c.write(lm75_adress, cmd, 1);
+    	i2c.read(lm75_adress, cmd, 2);
+        float temperature = ((cmd[0] << 8 | cmd[1] ) >> 7) * 0.5;
+        sprintf(buf, "%f", temperature);
+    	printf("Temperature : %f\n", temperature);
 
-    rc = client.publish(topic, message);
+        message.qos = MQTT::QOS0;
+        message.retained = false;
+        message.dup = false;
+        message.payload = (void*)buf;
+        message.payloadlen = strlen(buf)+1;
+
+        rc = client.publish(topic, message);
+        
+        //Envoi humidité
+        float tension_temp = capt_hum.read();
+        float measure_percent = (measure - air_value) * 100.0 / (water_value - air_value);
+
+        sprintf(buf, "%f", measure_percent);
+
+        message.qos = MQTT::QOS0;
+        message.retained = false;
+        message.dup = false;
+        message.payload = (void*)buf;
+        message.payloadlen = strlen(buf)+1;
+
+        rc = client.publish(topic2, message);
+    
+        printf("Alive!\n");
+        ThisThread::sleep_for(PERIOD_MS);
+    
+    
+    }
 
     // yield function is used to refresh the connexion
     // Here we yield until we receive the message we sent
